@@ -45,7 +45,6 @@ df_cleaned[cols_to_convert[!cols_to_convert %in% cols_to_drop]] <- lapply(
 df_cleaned$StartTime <- as.POSIXct(df_cleaned$StartTime, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC")
 df_cleaned$EndTime <- as.POSIXct(df_cleaned$EndTime, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC")
 
-
 # Verificare i tipi di dati dopo la conversione
 str(df_cleaned)
 
