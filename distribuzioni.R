@@ -2,6 +2,9 @@
 df <- read.csv("ACTIVITIESdata_cleaned.csv")
 
 # funzione di distribuzione sul dataset 
+if(!require(ggplot2)) 
+  install.packages("ggplot2")
+library(ggplot2)
 # Calcolare la funzione di distribuzione cumulativa per la distanza percorsa
 ggplot(df, aes(x = Distance)) +
   stat_ecdf(geom = "step", color = "blue") +

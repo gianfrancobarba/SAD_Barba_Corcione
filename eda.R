@@ -77,7 +77,9 @@ cat("Numero di discrepanze nella velocità:", nrow(speed_issues), "\n")
 
 
 # Analisi delle Variabili Categoriali
-
+if(!require(ggplot2))
+  install.packages("ggplot2")
+library(ggplot2)
 # Grafico a barre per la distribuzione dei tipi di attività
 ggplot(df, aes(x = ActivityType)) +
   geom_bar(fill = "orange") +

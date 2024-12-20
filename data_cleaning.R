@@ -115,3 +115,169 @@ write.csv(df_cleaned, "ACTIVITIESdata_cleaned.csv", row.names = FALSE)
 # Visualizzare le prime righe del dataset pulito per confermare le modifiche
 head(df_cleaned)
 
+
+# ANALISI DEGLI OUTLIER
+# -----------------------------------------------------------
+# 1. Caricare i Pacchetti Necessari
+# -----------------------------------------------------------
+
+if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(dplyr)) install.packages("dplyr")
+if (!require(tidyr)) install.packages("tidyr")
+
+# Caricare le librerie
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# -----------------------------------------------------------
+# 2. Caricare il Dataset Pulito
+# -----------------------------------------------------------
+
+df <- read.csv("ACTIVITIESdata_cleaned.csv")
+
+# Visualizzare le prime righe del dataset
+head(df)
+
+# -----------------------------------------------------------
+# 3. Selezionare le Feature Rilevanti
+# -----------------------------------------------------------
+
+selected_features <- df %>% select(SpeedAvg, Calories, HrAvg, Duration)
+
+# -----------------------------------------------------------
+# 4. Identificare Outlier Utilizzando lo Z-Score per Ogni Tipo di Attività
+# -----------------------------------------------------------
+
+# Funzione per calcolare lo Z-Score e identificare outlier
+identify_outliers_zscore <- function(data, threshold = 3) {
+  outlier_indices <- c()
+  for (activity in unique(data$ActivityType)) {
+    # Filtrare i dati per tipo di attività
+    activity_data <- data %>% filter(ActivityType == activity) %>% select(SpeedAvg, Calories, HrAvg, Duration)
+    # Calcolare lo Z-Score per le feature selezionate
+    z_scores <- scale(activity_data)
+    # Identificare gli outlier con Z-Score superiore alla soglia
+    outliers <- apply(abs(z_scores), 1, function(x) any(x > threshold))
+    # Aggiungere gli indici degli outlier
+    outlier_indices <- c(outlier_indices, which(outliers) + min(which(data$ActivityType == activity)) - 1)
+  }
+  return(outlier_indices)
+}
+
+# Identificare gli outlier con una soglia di 3
+outlier_indices <- identify_outliers_zscore(df, threshold = 3)
+
+# Estrarre i punti identificati come outlier
+outlier_points <- df[outlier_indices, ]
+
+# Visualizzare i punti identificati come outlier
+print("Righe del dataset identificate come outlier:")
+print(outlier_points)
+
+# -----------------------------------------------------------
+# 5. Visualizzare i Boxplot delle Feature Selezionate per Tipo di Attività
+# -----------------------------------------------------------
+
+# Funzione per creare un boxplot per ciascuna feature
+plot_boxplots <- function(data, features) {
+  for (feature in features) {
+    p <- ggplot(data, aes(x = ActivityType, y = .data[[feature]], fill = ActivityType)) +
+      geom_boxplot(outlier.colour = "red", outlier.shape = 8, outlier.size = 2) +
+      labs(title = paste("Boxplot di", feature, "per Tipo di Attività"),
+           x = "Tipo di Attività",
+           y = feature) +
+      theme_minimal()
+    print(p)
+  }
+}
+
+# Creare boxplot per ciascuna feature selezionata
+plot_boxplots(df, c("SpeedAvg", "Calories", "HrAvg", "Duration"))
+
+# -----------------------------------------------------------
+# 6. Contare gli Outlier per Ogni Tipo di Attività
+# -----------------------------------------------------------
+
+outlier_counts <- outlier_points %>% count(ActivityType)
+print("Numero di outlier per ciascun tipo di attività:")
+print(outlier_counts)
+
+# -----------------------------------------------------------
+# 7. Visualizzare gli Outlier in un Grafico a Barre
+# -----------------------------------------------------------
+
+ggplot(outlier_counts, aes(x = ActivityType, y = n, fill = ActivityType)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Numero di Outlier per Tipo di Attività",
+       x = "Tipo di Attività",
+       y = "Numero di Outlier") +
+  theme_minimal()
+
+# -----------------------------------------------------------
+# 8. Identificare le Feature che Hanno Causato l'Outlier con Valori Medi e Outlier
+# -----------------------------------------------------------
+
+# Funzione per identificare gli outlier e aggiungere i valori medi e outlier
+identify_outlier_features <- function(data, threshold = 3) {
+  outlier_details <- data.frame(Row = integer(), 
+                                ActivityType = character(), 
+                                Feature = character(), 
+                                Mean_Value = numeric(), 
+                                Outlier_Value = numeric(), 
+                                stringsAsFactors = FALSE)
+  
+  for (activity in unique(data$ActivityType)) {
+    # Filtrare i dati per tipo di attività
+    activity_data <- data %>% filter(ActivityType == activity) %>% select(SpeedAvg, Calories, HrAvg, Duration)
+    # Calcolare lo Z-Score per le feature selezionate
+    z_scores <- scale(activity_data)
+    # Identificare gli outlier per ciascuna riga
+    for (i in 1:nrow(activity_data)) {
+      outlier_features <- which(abs(z_scores[i, ]) > threshold)
+      if (length(outlier_features) > 0) {
+        for (feature_index in outlier_features) {
+          feature_name <- names(activity_data)[feature_index]
+          mean_value <- mean(activity_data[[feature_name]], na.rm = TRUE)
+          outlier_value <- activity_data[[feature_name]][i]
+          
+          outlier_details <- rbind(outlier_details, data.frame(
+            Row = i + min(which(data$ActivityType == activity)) - 1,
+            ActivityType = activity,
+            Feature = feature_name,
+            Mean_Value = round(mean_value, 2),
+            Outlier_Value = round(outlier_value, 2)
+          ))
+        }
+      }
+    }
+  }
+  return(outlier_details)
+}
+
+# Identificare le feature che hanno causato l'outlier con i valori medi e outlier
+outlier_details <- identify_outlier_features(df, threshold = 3)
+
+# Stampare i dettagli degli outlier come dataframe
+print("Dettagli delle righe outlier con valori medi e outlier corrispondenti:")
+print(outlier_details)
+
+# Visualizzare i dettagli degli outlier in una tabella ordinata
+library(knitr)
+kable(outlier_details, caption = "Dettagli degli Outlier con Valori Medi e Outlier")
+
+# -----------------------------------------------------------
+# Ora provo a creare un nuovo csv con rimuovendo queste righe "critiche" e ri-eseguo clustering
+
+# Creare un nuovo dataframe rimuovendo le righe identificate come outlier
+df_no_outliers <- df[-outlier_details$Row, ]
+
+# Visualizzare le prime righe del nuovo dataframe senza outlier
+head(df_no_outliers)
+
+# Salvare il nuovo dataframe in un file CSV
+write.csv(df_no_outliers, "ACTIVITIESdata_no_outliers.csv", row.names = FALSE)
+
+# Confermare la creazione del file
+print("Nuovo file CSV 'ACTIVITIESdata_no_outliers.csv' creato con successo senza outlier.")
+
